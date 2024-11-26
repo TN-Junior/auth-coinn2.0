@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import jwt
+import requests
 import datetime
 from urllib.parse import quote_plus
 
@@ -84,10 +85,24 @@ def login():
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
+        captcha_token = data.get('captchaToken')  # Captura o token do reCAPTCHA enviado pelo frontend
 
-        if not email or not password:
-            return jsonify({'message': 'Por favor, preencha todos os campos'}), 400
+        if not email or not password or not captcha_token:
+            return jsonify({'message': 'Por favor, preencha todos os campos e complete o reCAPTCHA'}), 400
 
+        # Validação do reCAPTCHA com a API do Google
+        recaptcha_secret = "6LdulYoqAAAAAPlPXWqIQdP5_2xLqkIX-jmY0LLt"  # Secret key associada ao domínio coin.example
+        recaptcha_url = "https://www.google.com/recaptcha/api/siteverify"
+        recaptcha_response = requests.post(
+            recaptcha_url,
+            data={"secret": recaptcha_secret, "response": captcha_token}
+        )
+
+        recaptcha_result = recaptcha_response.json()
+        if not recaptcha_result.get('success'):
+            return jsonify({'message': 'Falha na verificação do reCAPTCHA'}), 400
+
+        # Autenticação do usuário
         user = Users.query.filter_by(email=email).first()
 
         if not user:

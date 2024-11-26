@@ -6,5 +6,5 @@ python-dotenv==0.19.2
 Werkzeug==2.1.0
 PyJWT==2.3.0
 SQLAlchemy==1.4.47
-
+requests==2.32.3
 

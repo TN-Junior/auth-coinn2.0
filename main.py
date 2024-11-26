@@ -153,6 +153,39 @@ def reset_password():
         db.session.rollback()
         return jsonify({'message': f'Ocorreu um erro ao redefinir a senha: {str(e)}'}), 500
 
+# Blacklist para armazenar tokens inválidos
+blacklist = set()
+
+# Rota de logout
+@app.route('/logout', methods=['POST'])
+def logout():
+    try:
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return jsonify({'message': 'Token não fornecido'}), 400
+
+        token = auth_header.split(" ")[1]  # Extrai o token do cabeçalho Authorization
+        
+        # Adicionar o token à blacklist
+        blacklist.add(token)
+        
+        return jsonify({'message': 'Logout realizado com sucesso!'}), 200
+    except Exception as e:
+        app.logger.error(f'Erro ao fazer logout: {e}')
+        return jsonify({'message': f'Ocorreu um erro ao fazer logout: {str(e)}'}), 500
+
+# Middleware para verificar se o token está na blacklist
+@app.before_request
+def check_blacklist():
+    auth_header = request.headers.get('Authorization')
+    
+    if auth_header:
+        token = auth_header.split(" ")[1]
+        if token in blacklist:
+            return jsonify({'message': 'Token inválido. Por favor, faça login novamente.'}), 401
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

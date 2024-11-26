@@ -7,7 +7,6 @@ from flask_cors import CORS
 import jwt
 import requests
 import datetime
-from functools import wraps
 from urllib.parse import quote_plus
 
 # Carregar variáveis do arquivo .env
@@ -26,6 +25,7 @@ if not secret_key or not database_uri:
 # Codificar senha na URI do banco de dados, se necessário
 if 'mysql://' in database_uri:
     database_uri = database_uri.replace('mysql://', 'mysql+pymysql://')
+    # Exemplo para codificar a senha manualmente caso contenha caracteres especiais
     if "@" in database_uri.split(":")[2]:
         user, password_host = database_uri.split("//")[1].split(":", 1)
         password, host = password_host.split("@", 1)
@@ -48,27 +48,6 @@ class Users(db.Model):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
-# Decorador para verificar o token JWT
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return jsonify({'message': 'Token não fornecido'}), 401
-
-        try:
-            token = auth_header.split(" ")[1]
-            if token in blacklist:
-                return jsonify({'message': 'Token inválido. Faça login novamente.'}), 401
-            
-            jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token expirado. Faça login novamente.'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Token inválido. Faça login novamente.'}), 401
-        return f(*args, **kwargs)
-    return decorated
-
 # Rota de registro de usuários
 @app.route('/auth/register', methods=['POST'])
 def register():
@@ -78,13 +57,16 @@ def register():
         email = data.get('email')
         password = data.get('password')
 
+        # Verificação de campos obrigatórios
         if not name or not email or not password:
             return jsonify({'message': 'Por favor, preencha todos os campos'}), 400
 
+        # Verificar se o email já está registrado
         existing_user = Users.query.filter_by(email=email).first()
         if existing_user:
             return jsonify({'message': 'Usuário já registrado com este email'}), 400
 
+        # Hash da senha e criação do usuário
         hashed_password = generate_password_hash(password, method='sha256')
         new_user = Users(name=name, email=email, password=hashed_password)
         db.session.add(new_user)
@@ -104,26 +86,33 @@ def login():
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
-        captcha_token = data.get('captchaToken')
+        captcha_token = data.get('captchaToken')  # Captura o token do reCAPTCHA enviado pelo frontend
 
         if not email or not password or not captcha_token:
             return jsonify({'message': 'Por favor, preencha todos os campos e complete o reCAPTCHA'}), 400
 
+        # Validação do reCAPTCHA com a API do Google
+        recaptcha_secret = "6LdulYoqAAAAAPlPXWqIQdP5_2xLqkIX-jmY0LLt"  # Secret key associada ao domínio coin.example
         recaptcha_url = "https://www.google.com/recaptcha/api/siteverify"
         recaptcha_response = requests.post(
             recaptcha_url,
-            data={"secret": recaptcha, "response": captcha_token}
+            data={"secret": recaptcha_secret, "response": captcha_token}
         )
 
         recaptcha_result = recaptcha_response.json()
         if not recaptcha_result.get('success'):
             return jsonify({'message': 'Falha na verificação do reCAPTCHA'}), 400
 
+        # Autenticação do usuário
         user = Users.query.filter_by(email=email).first()
 
-        if not user or not check_password_hash(user.password, password):
-            return jsonify({'message': 'Credenciais inválidas'}), 401
+        if not user:
+            return jsonify({'message': 'Credenciais inválidas: usuário não encontrado'}), 401
 
+        if not check_password_hash(user.password, password):
+            return jsonify({'message': 'Credenciais inválidas: senha incorreta'}), 401
+
+        # Geração do token JWT
         token = jwt.encode(
             {'user_id': user.id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)},
             app.config['SECRET_KEY'],
@@ -147,10 +136,13 @@ def reset_password():
         if not email or not new_password:
             return jsonify({'message': 'Por favor, preencha todos os campos'}), 400
 
+        # Verificar se o usuário com o email existe
         user = Users.query.filter_by(email=email).first()
+
         if not user:
             return jsonify({'message': 'Usuário não encontrado'}), 404
 
+        # Atualizar a senha do usuário
         user.password = generate_password_hash(new_password, method='sha256')
         db.session.commit()
 
@@ -161,15 +153,21 @@ def reset_password():
         db.session.rollback()
         return jsonify({'message': f'Ocorreu um erro ao redefinir a senha: {str(e)}'}), 500
 
+# Blacklist para armazenar tokens inválidos
+blacklist = set()
+
 # Rota de logout
 @app.route('/logout', methods=['POST'])
 def logout():
     try:
         auth_header = request.headers.get('Authorization')
+        
         if not auth_header:
             return jsonify({'message': 'Token não fornecido'}), 400
 
-        token = auth_header.split(" ")[1]
+        token = auth_header.split(" ")[1]  # Extrai o token do cabeçalho Authorization
+        
+        # Adicionar o token à blacklist
         blacklist.add(token)
         
         return jsonify({'message': 'Logout realizado com sucesso!'}), 200
@@ -177,23 +175,16 @@ def logout():
         app.logger.error(f'Erro ao fazer logout: {e}')
         return jsonify({'message': f'Ocorreu um erro ao fazer logout: {str(e)}'}), 500
 
-# Exemplo de rota protegida
-@app.route('/protected', methods=['GET'])
-@token_required
-def protected_route():
-    return jsonify({'message': 'Você acessou uma rota protegida!'})
-
 # Middleware para verificar se o token está na blacklist
 @app.before_request
 def check_blacklist():
     auth_header = request.headers.get('Authorization')
+    
     if auth_header:
         token = auth_header.split(" ")[1]
         if token in blacklist:
-            return jsonify({'message': 'Token inválido. Faça login novamente.'}), 401
+            return jsonify({'message': 'Token inválido. Por favor, faça login novamente.'}), 401
 
-# Blacklist para armazenar tokens inválidos
-blacklist = set()
 
 if __name__ == '__main__':
     with app.app_context():

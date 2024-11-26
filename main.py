@@ -17,6 +17,7 @@ app = Flask(__name__)
 # Verificação das variáveis de ambiente essenciais
 secret_key = os.getenv('SECRET_KEY')
 database_uri = os.getenv('SQLALCHEMY_DATABASE_URI')
+recaptcha = os.getenv('recaptcha_secret')
 
 if not secret_key or not database_uri:
     raise ValueError("As variáveis de ambiente 'SECRET_KEY' ou 'SQLALCHEMY_DATABASE_URI' não estão definidas.")

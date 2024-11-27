@@ -40,6 +40,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 CORS(app)
 
+@app.before_request
+def check_blacklist():
+    auth_header = request.headers.get('Authorization')
+    
+    if auth_header:
+        token = auth_header.split(" ")[1]
+        if token in blacklist:
+            return jsonify({'message': 'Token inválido. Por favor, faça login novamente.'}), 401
+
+
 # Classe de usuários
 class Users(db.Model):
     __tablename__ = 'users'

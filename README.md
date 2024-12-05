@@ -39,8 +39,8 @@ Auth Coin é uma aplicação de autenticação de usuários desenvolvida com **P
 
 1. Clone o repositório:
    ```bash
-   git clone https://github.com/seu-usuario/auth-coin.git
-   cd auth-coin
+   git clone https://github.com/TN-Junior/auth-coinn2.0.git
+   cd auth-coin2.0
 
 
    python -m venv venv

@@ -44,4 +44,44 @@ Auth Coin é uma aplicação de autenticação de usuários desenvolvida com **P
 
 
    python -m venv venv
-source venv/bin/activate
+   
+   pip install -r requirements.txt
+
+   SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://usuario:senha@localhost/nome_do_banco'
+
+ #  Rotas Principais
+  
+  1. Cadastro de Usuário
+  Exemplo de Requisição:
+  ```bash
+  curl -X POST http://127.0.0.1:5000/login \
+-H "Content-Type: application/json" \
+-d '{
+  "username": "usuario",
+  "password": "senha"
+}'
+
+````
+Exemplo de Resposta:
+```` bash
+{
+  "message": "Usuário registrado com sucesso"
+}
+````
+2. Login
+Exemplo de Requisição:
+  ```bash
+curl -X POST http://127.0.0.1:5000/login \
+-H "Content-Type: application/json" \
+-d '{
+  "username": "usuario",
+  "password": "senha"
+}'
+
+
+
+
+  
+  
+
+  
